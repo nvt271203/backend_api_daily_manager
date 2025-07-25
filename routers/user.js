@@ -300,7 +300,7 @@ authRouter.put('/api/user/:id', async (req, res) => {
             return res.status(404).json({ message: 'User not found' }); // Trả về lỗi nếu không tìm thấy người dùng
         } 
     // 👇 Emit event tới client
-    console.log('📣 Emitting user_updated event to socket');
+     console.log('📣 Emitting user_updated event to socket');
      global._io.emit('user_updated', updatedUser); // emit tới tất cả client
 
         return res.status(200).json(updatedUser); // Trả về người dùng đã cập nhật

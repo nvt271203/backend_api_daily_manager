@@ -82,6 +82,9 @@ workRouter.post('/api/work_checkin', async (req, res) => {
       plan: plan,
       note: note,
     });
+     // 👇 Emit event tới client
+     console.log('📣 Emitting work_checkIn event to socket');
+     global._io.emit('work_checkIn', newWork); // emit tới tất cả client
 
     // Lưu vào database
     const savedWork = await newWork.save();
