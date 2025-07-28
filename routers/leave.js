@@ -28,6 +28,95 @@ leaveRouter.get('/api/leave/:userId', async (req, res) => {
     }
 }); 
 
+// leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
+//     try {
+//         const { userId } = req.params;
+//         const page = parseInt(req.query.page) || 1;
+//         const limit = parseInt(req.query.limit) || 10;
+//         const skip = (page - 1) * limit;
+
+//         const leaves = await Leave.find({ userId })
+//             .sort({ createdAt: -1 }) // Sắp xếp mới nhất trước
+//             .skip(skip)
+//             .limit(limit);
+
+//         const total = await Leave.countDocuments({ userId });
+
+//         res.json({
+//             data: leaves,
+//             currentPage: page,
+//             totalPages: Math.ceil(total / limit),
+//             totalItems: total,
+//         });
+//     } catch (e) {
+//         res.status(500).json({ error: e.message });
+//     }
+// });
+leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+    const skip = (page - 1) * limit;
+
+    const leaves = await Leave.find({ userId })
+      .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Sử dụng lean để tối ưu
+
+    console.log('Backend leaves order:', leaves.map(leave => leave.createdAt));
+
+ // Tính tổng số leaves theo tháng-năm cho toàn bộ user
+    const leavesByMonthYear = await Leave.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$dateCreated' },
+            month: { $month: '$dateCreated' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          monthYear: {
+            $concat: [
+              {
+                $cond: [
+                  { $lt: ['$_id.month', 10] },
+                  { $concat: ['0', { $toString: '$_id.month' }] },
+                  { $toString: '$_id.month' },
+                ],
+              },
+              '-',
+              { $toString: '$_id.year' },
+            ],
+          },
+          count: 1,
+        },
+      },
+      {
+        $sort: { 'monthYear': -1 } // Sắp xếp tháng-năm từ mới nhất đến cũ nhất
+      }
+    ]);
+
+
+    res.json({
+      data: leaves,
+      currentPage: page,
+      totalPages: Math.ceil(await Leave.countDocuments({ userId }) / limit),
+      totalItems: await Leave.countDocuments({ userId }),
+      leavesByMonthYear,
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 leaveRouter.delete('/api/leave/:id', async (req, res) => {
     try {

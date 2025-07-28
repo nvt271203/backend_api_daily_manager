@@ -1,6 +1,7 @@
 // import http from 'http';
 // import { Server } from 'socket.io';;
-
+const Leave = require('./models/leave'); // Cập nhật đường dẫn nếu khác
+const { ObjectId } = require('mongoose').Types;
 
 require('dotenv').config();
 const express = require('express');
@@ -78,13 +79,19 @@ app.use(workRouter); // Sử dụng router công việc để xử lý các yêu
 app.use(leaveRouter); // Sử dụng router nghỉ phép để xử lý các yêu cầu liên quan đến nghỉ phép
 // Connect to MongoDB using environment variable
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async() => {
     console.log('MongoDB connected');
+    // // 🧹 Xóa dữ liệu
+    // try {
+    //   const result = await Leave.deleteOne({ _id: new ObjectId("68800b447e672d1e4b93542a") });
+    //   console.log('🗑️ Delete result:', result);
+    // } catch (error) {
+    //   console.error('❌ Delete error:', error);
+    // }
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);
   });
-
   // Lỗi nếu dùng cho socket. phải thay app bằng serve
 // Start the server
 // app.listen(PORT, '0.0.0.0', () => {

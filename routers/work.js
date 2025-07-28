@@ -29,6 +29,39 @@ workRouter.get('/api/work/:userId', async (req, res) => {
     }
 });
 
+workRouter.get('/api/work_pull_to_refresh/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const page = parseInt(req.query.page) || 1;      // Mặc định trang 1
+        const limit = parseInt(req.query.limit) || 10;   // Mặc định mỗi trang 10 bản ghi
+
+        const skip = (page - 1) * limit;
+
+        const [works, totalCount] = await Promise.all([
+            Work.find({ userId, checkOutTime: { $ne: null } })
+                .sort({ checkOutTime: -1 })              // Ưu tiên sắp xếp mới nhất
+                .skip(skip)
+                .limit(limit),
+            Work.countDocuments({ userId, checkOutTime: { $ne: null } })
+        ]);
+
+        if (works.length === 0) {
+            return res.status(404).json({ message: 'No work records found.' });
+        }
+
+        res.json({
+            data: works,
+            pagination: {
+                total: totalCount,
+                page,
+                limit,
+                totalPages: Math.ceil(totalCount / limit)
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 
 workRouter.get('/api/work', async (req, res) => {
