@@ -29,11 +29,11 @@ workRouter.get('/api/work/:userId', async (req, res) => {
     }
 });
 
-workRouter.get('/api/work_pull_to_refresh/:userId', async (req, res) => {
+workRouter.get('/api/works_user_pagination/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const page = parseInt(req.query.page) || 1;      // Mặc định trang 1
-        const limit = parseInt(req.query.limit) || 10;   // Mặc định mỗi trang 10 bản ghi
+        const limit = parseInt(req.query.limit) || 20;   // Mặc định mỗi trang 10 bản ghi
 
         const skip = (page - 1) * limit;
 
