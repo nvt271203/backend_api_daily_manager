@@ -73,8 +73,10 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
       {
         $group: {
           _id: {
-            year: { $year: '$dateCreated' },
-            month: { $month: '$dateCreated' },
+            // year: { $year: '$dateCreated' },
+            // month: { $month: '$dateCreated' },
+            year: { $year: { date: '$dateCreated', timezone: 'Asia/Ho_Chi_Minh' } },
+            month: { $month: { date: '$dateCreated', timezone: 'Asia/Ho_Chi_Minh' } },
           },
           count: { $sum: 1 },
         },
