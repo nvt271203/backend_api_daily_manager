@@ -60,7 +60,7 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
     const skip = (page - 1) * limit;
 
     const leaves = await Leave.find({ userId })
-      .sort({startDate: -1 }) // Sắp xếp mới nhất trước
+      .sort({startDate: -1, dateCreated: -1 }) // Sắp xếp mới nhất trước
       //  .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
       .skip(skip)
       .limit(limit)
@@ -68,7 +68,8 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
 
     console.log('Backend leaves order:', leaves.map(leave => leave.startDate));
 
- // Tính tổng số leaves theo tháng-năm cho toàn bộ user
+ // Tính tổng số leaves theo tháng-năm cho toàn bộ user -- sai
+//  / Tính tổng số leaves theo tháng-năm cho toàn bộ user dựa trên startDate
     const leavesByMonthYear = await Leave.aggregate([
       { $match: { userId } },
       {
@@ -76,8 +77,8 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
           _id: {
             // year: { $year: '$dateCreated' },
             // month: { $month: '$dateCreated' },
-            year: { $year: { date: '$dateCreated', timezone: 'Asia/Ho_Chi_Minh' } },
-            month: { $month: { date: '$dateCreated', timezone: 'Asia/Ho_Chi_Minh' } },
+            year: { $year: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+            month: { $month: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
           },
           count: { $sum: 1 },
         },
