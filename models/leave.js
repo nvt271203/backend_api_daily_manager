@@ -33,6 +33,10 @@ const leaveSchema = mongoose.Schema(
             enum: ['Pending', 'Approved', 'Rejected'],
             default: 'Pending',
         },
+        isNew: {
+            type: Boolean,
+            default: true,
+        },
         userId: {
             type: String,
             required: true,

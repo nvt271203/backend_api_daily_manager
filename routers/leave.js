@@ -60,12 +60,13 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
     const skip = (page - 1) * limit;
 
     const leaves = await Leave.find({ userId })
-      .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
+      .sort({startDate: -1 }) // Sắp xếp mới nhất trước
+      //  .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
       .skip(skip)
       .limit(limit)
       .lean(); // Sử dụng lean để tối ưu
 
-    console.log('Backend leaves order:', leaves.map(leave => leave.createdAt));
+    console.log('Backend leaves order:', leaves.map(leave => leave.startDate));
 
  // Tính tổng số leaves theo tháng-năm cho toàn bộ user
     const leavesByMonthYear = await Leave.aggregate([
@@ -118,6 +119,20 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+leaveRouter.put('/api/leave_remove_isnew/:id', async (req, res) => {
+    try {
+const leave = await Leave.findByIdAndUpdate(
+      req.params.id,
+      { isNew: false },
+      { new: true } // Trả về tài liệu đã cập nhật
+)
+   res.json(leave); // Trả về đơn xin nghỉ phép đã cập nhật
+    }catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }
+});
+
 
 
 leaveRouter.delete('/api/leave/:id', async (req, res) => {

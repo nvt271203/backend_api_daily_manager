@@ -88,6 +88,10 @@ mongoose.connect(process.env.MONGODB_URI)
     // } catch (error) {
     //   console.error('❌ Delete error:', error);
     // }
+    const result = await Leave.updateMany(
+    { isNew: { $exists: true } },
+    { $set: { isNew: false } }
+  );
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);
