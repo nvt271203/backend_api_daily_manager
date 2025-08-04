@@ -52,34 +52,138 @@ leaveRouter.get('/api/leave/:userId', async (req, res) => {
 //         res.status(500).json({ error: e.message });
 //     }
 // });
+
+
+
+// leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 8;
+//     const skip = (page - 1) * limit;
+
+//     const leaves = await Leave.find({ userId })
+//       .sort({startDate: -1, dateCreated: -1 }) // Sắp xếp mới nhất trước
+//       //  .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
+//       .skip(skip)
+//       .limit(limit)
+//       .lean(); // Sử dụng lean để tối ưu
+
+//     console.log('Backend leaves order:', leaves.map(leave => leave.startDate));
+
+//  // Tính tổng số leaves theo tháng-năm cho toàn bộ user -- sai
+// //  / Tính tổng số leaves theo tháng-năm cho toàn bộ user dựa trên startDate
+//     const leavesByMonthYear = await Leave.aggregate([
+//       { $match: { userId } },
+//       {
+//         $group: {
+//           _id: {
+//             // year: { $year: '$dateCreated' },
+//             // month: { $month: '$dateCreated' },
+//             year: { $year: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+//             month: { $month: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+//           },
+//           count: { $sum: 1 },
+//         },
+//       },
+//       {
+//         $project: {
+//           _id: 0,
+//           monthYear: {
+//             $concat: [
+//               {
+//                 $cond: [
+//                   { $lt: ['$_id.month', 10] },
+//                   { $concat: ['0', { $toString: '$_id.month' }] },
+//                   { $toString: '$_id.month' },
+//                 ],
+//               },
+//               '/',
+//               { $toString: '$_id.year' },
+//             ],
+//           },
+//           count: 1,
+//         },
+//       },
+//       {
+//         $sort: { 'monthYear': -1 } // Sắp xếp tháng-năm từ mới nhất đến cũ nhất
+//       }
+//     ]);
+
+
+//     res.json({
+//       data: leaves,
+//       currentPage: page,
+//       totalPages: Math.ceil(await Leave.countDocuments({ userId }) / limit),
+//       totalItems: await Leave.countDocuments({ userId }),
+//       leavesByMonthYear,
+//     });
+
+//   } catch (e) {
+//     res.status(500).json({ error: e.message });
+//   }
+// });
+
+
 leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 8;
     const skip = (page - 1) * limit;
+    const filterYear = req.query.filterYear ? parseInt(req.query.filterYear) : new Date().getFullYear();
+    const sortField = req.query.sortField || 'startDate'; // Mặc định là startDate
+    const sortOrder = req.query.sortOrder || 'desc'; // Mặc định giảm dần
+    const status = req.query.status || 'all'; // Mặc định tất cả trạng thái
 
-    const leaves = await Leave.find({ userId })
-      .sort({startDate: -1, dateCreated: -1 }) // Sắp xếp mới nhất trước
-      //  .sort({ dateCreated: -1 }) // Sắp xếp mới nhất trước
+    // Xây dựng điều kiện lọc
+    const query = { userId };
+
+    // Lọc theo năm dựa trên startDate
+    // if (filterYear) {
+    //   query.startDate = {
+    //     $gte: new Date(filterYear, 0, 1),
+    //     $lte: new Date(filterYear, 11, 31, 23, 59, 59, 999),
+    //   };
+    // }
+// Lọc theo năm dựa trên trường sắp xếp (sortField)
+    if (filterYear) {
+      query[sortField] = {
+        $gte: new Date(filterYear, 0, 1),
+        $lte: new Date(filterYear, 11, 31, 23, 59, 59, 999),
+      };
+    }
+    // Lọc theo trạng thái
+    if (status !== 'all') {
+      query.status = status; // Chỉ thêm điều kiện nếu status không phải 'all'
+    }
+
+    // Xây dựng object sắp xếp
+    const sort = {};
+    sort[sortField] = sortOrder === 'asc' ? 1 : -1;
+
+    // Lấy danh sách leaves
+    const leaves = await Leave.find(query)
+      .sort(sort)
       .skip(skip)
       .limit(limit)
-      .lean(); // Sử dụng lean để tối ưu
+      .lean();
 
-    console.log('Backend leaves order:', leaves.map(leave => leave.startDate));
+    console.log('Backend leaves order:', leaves.map(leave => ({ dateCreated: leave.dateCreated, startDate: leave.startDate })));
 
- // Tính tổng số leaves theo tháng-năm cho toàn bộ user -- sai
-//  / Tính tổng số leaves theo tháng-năm cho toàn bộ user dựa trên startDate
+    // Tính tổng số leaves theo tháng-năm dựa trên startDate
     const leavesByMonthYear = await Leave.aggregate([
-      { $match: { userId } },
+      { $match: query }, // Sử dụng query đã xây dựng để lọc
       {
         $group: {
-          _id: {
-            // year: { $year: '$dateCreated' },
-            // month: { $month: '$dateCreated' },
-            year: { $year: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
-            month: { $month: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
-          },
+          // _id: {
+          //   year: { $year: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+          //   month: { $month: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+          // },
+           _id: {
+        year: { $year: { date: '$' + sortField, timezone: 'Asia/Ho_Chi_Minh' } },
+        month: { $month: { date: '$' + sortField, timezone: 'Asia/Ho_Chi_Minh' } },
+      },
           count: { $sum: 1 },
         },
       },
@@ -95,7 +199,7 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
                   { $toString: '$_id.month' },
                 ],
               },
-              '-',
+              '/',
               { $toString: '$_id.year' },
             ],
           },
@@ -104,22 +208,24 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
       },
       {
         $sort: { 'monthYear': -1 } // Sắp xếp tháng-năm từ mới nhất đến cũ nhất
-      }
+      },
     ]);
 
-
+    // Trả về kết quả
     res.json({
       data: leaves,
       currentPage: page,
-      totalPages: Math.ceil(await Leave.countDocuments({ userId }) / limit),
-      totalItems: await Leave.countDocuments({ userId }),
+      totalPages: Math.ceil(await Leave.countDocuments(query) / limit),
+      totalItems: await Leave.countDocuments(query),
       leavesByMonthYear,
     });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+}); 
+
+
 
 leaveRouter.put('/api/leave_remove_isnew/:id', async (req, res) => {
     try {
