@@ -159,8 +159,12 @@ leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
     }
 
     // Xây dựng object sắp xếp
-    const sort = {};
-    sort[sortField] = sortOrder === 'asc' ? 1 : -1;
+    // const sort = {};
+    // sort[sortField] = sortOrder === 'asc' ? 1 : -1;
+const sort = {
+  [sortField]: sortOrder === 'asc' ? 1 : -1,
+  _id: sortOrder === 'asc' ? 1 : -1, // Secondary sort để ổn định thứ tự
+};
 
     // Lấy danh sách leaves
     const leaves = await Leave.find(query)
