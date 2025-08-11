@@ -3,19 +3,40 @@ const Work = require('../models/work'); // Đây là mô hình của một công
 const User = require('../models/user'); // Mô hình người dùng, để lấy thông tin người dùng liên quan đến công việc.
 const workRouter = express.Router(); // Khởi tạo một router cho các API liên quan đến công việc.
 
+// workRouter.post('/api/work', async (req, res) => {
+//     try {
+//         const { checkInTime, checkOutTime, workTime, report, plan, note, userId } = req.body;
+//         // Tạo một công việc mới vớ i các thông tin từ yêu cầu
+//         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
+//         // Lưu công việc vào cơ sở dữ liệu
+//         await work.save();
+
+
+        
+//          console.log('📣 Emitting work_checkIn event to socket');
+//      global._io.emit('work_checkIn', work); // emit tới tất cả client
+
+//         res.status(201).json(work); // Trả về công việc đã tạo với mã trạng thái 201 (Created)
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }
+// });
 workRouter.post('/api/work', async (req, res) => {
     try {
         const { checkInTime, checkOutTime, workTime, report, plan, note, userId } = req.body;
-        // Tạo một công việc mới vớ i các thông tin từ yêu cầu
         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
-        // Lưu công việc vào cơ sở dữ liệu
         await work.save();
-         console.log('📣 Emitting work_checkIn event to socket');
-     global._io.emit('work_checkIn', work); // emit tới tất cả client
-
-        res.status(201).json(work); // Trả về công việc đã tạo với mã trạng thái 201 (Created)
+        // Populate thông tin user từ userId
+        const populatedWork = await Work.findById(work._id).populate('userId', 'fullName'); // Chỉ lấy fullName
+        if (!populatedWork) {
+            throw new Error('Failed to populate work data');
+        }
+        console.log('📣 Emitting work_checkIn event to socket with populated data: ', populatedWork.toJSON());
+        global._io.emit('work_checkIn', populatedWork.toJSON()); // Phát dữ liệu đã populate
+        res.status(201).json(populatedWork); // Trả về dữ liệu đã populate
     } catch (e) {
-        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+        console.error('Error in /api/work: ', e);
+        res.status(500).json({ error: e.message });
     }
 });
 workRouter.get('/api/works', async (req, res) => {
