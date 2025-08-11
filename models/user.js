@@ -53,7 +53,12 @@ const userSchema = mongoose.Schema(
     },
     position:{
         type: String,
-        default: "",
+        default: null,
+        trim: true,
+    },
+    department:{
+        type: String,
+        default: null,
         trim: true,
     },
     resetPasswordToken: {

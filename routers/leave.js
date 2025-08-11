@@ -244,6 +244,33 @@ const leave = await Leave.findByIdAndUpdate(
     }
 });
 
+leaveRouter.put('/api/leave/:leaveId', async (req, res) => {
+    try {
+      const { leaveId } = req.params;
+      const { status } = req.body;
+    // Tìm và cập nhật trạng thái
+      const updatedLeave = await Leave.findByIdAndUpdate(
+        leaveId,
+        { status },
+        { new: true }
+      );
+   // Nếu không tìm thấy đơn
+    if (!updatedLeave) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn nghỉ phép' });
+    }
+
+    res.json({
+      message: `Cập nhật trạng thái thành công`,
+      leave: updatedLeave,
+    });
+     // 👇 Emit event tới client
+        console.log('📣 Emitting leave_updated event to socket');
+        global._io.emit('leave_updated', updatedLeave); // emit tới tất cả client
+
+
+    }catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }});
 
 
 leaveRouter.delete('/api/leave/:id', async (req, res) => {

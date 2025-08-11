@@ -2,7 +2,7 @@
 // import { Server } from 'socket.io';;
 const Leave = require('./models/leave'); // Cập nhật đường dẫn nếu khác
 const { ObjectId } = require('mongoose').Types;
-
+const User = require('./models/user'); // Cập nhật đường dẫn nếu khác
 require('dotenv').config();
 const express = require('express');
 
@@ -92,6 +92,16 @@ mongoose.connect(process.env.MONGODB_URI)
   //   { isNew: { $exists: true } },
   //   { $set: { isNew: false } }
   // );
+  // Cập nhật tất cả user chưa có department thành chuỗi rỗng
+  //  const result = await User.updateMany(
+  //   { $or: [ { position: "" }, { department: "" } ] }, // lọc các user có "" ở 2 field này
+  //   {
+  //     $set: {
+  //       position: null,
+  //       department: null
+  //     }
+  //   }
+  // );
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);
@@ -103,7 +113,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server with Socket.IO is running on http://192.168.1.3:${PORT}`);
+  console.log(`🚀 Server with Socket.IO is running-${PORT}`);
 });
 
 

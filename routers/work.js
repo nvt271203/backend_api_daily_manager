@@ -1,5 +1,6 @@
 const express = require('express'); // Framework để tạo các API HTTP.
 const Work = require('../models/work'); // Đây là mô hình của một công việc, bao gồm các thông tin như thời gian check-in, check-out, thời gian làm việc, báo cáo, kế hoạch và ID người dùng.
+const User = require('../models/user'); // Mô hình người dùng, để lấy thông tin người dùng liên quan đến công việc.
 const workRouter = express.Router(); // Khởi tạo một router cho các API liên quan đến công việc.
 
 workRouter.post('/api/work', async (req, res) => {
@@ -9,12 +10,24 @@ workRouter.post('/api/work', async (req, res) => {
         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
         // Lưu công việc vào cơ sở dữ liệu
         await work.save();
+         console.log('📣 Emitting work_checkIn event to socket');
+     global._io.emit('work_checkIn', work); // emit tới tất cả client
+
         res.status(201).json(work); // Trả về công việc đã tạo với mã trạng thái 201 (Created)
     } catch (e) {
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
 });
-
+workRouter.get('/api/works', async (req, res) => {
+    try {
+        const works = await Work.find(); // Lấy tất cả công việc từ cơ sở dữ liệu
+        if (!works || works.length == 0) {
+            return res.status(404).json({ message: 'No works found' }); // Trả về lỗi nếu không tìm thấy công việc
+        }
+        res.json(works); // Trả về danh sách công việc
+    } catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }});
 workRouter.get('/api/work/:userId', async (req, res) => {
     try {
         const {userId} = req.params;
@@ -64,14 +77,70 @@ workRouter.get('/api/works_user_pagination/:userId', async (req, res) => {
 });
 
 
-workRouter.get('/api/work', async (req, res) => {
-    try {
-        const works = await Work.find(); // Lấy tất cả công việc từ cơ sở dữ liệu
-        res.json(works); // Trả về danh sách công việc
-    } catch (e) {
-        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+// workRouter.get('/api/work', async (req, res) => {
+//     try {
+//         const works = await Work.find(); // Lấy tất cả công việc từ cơ sở dữ liệu
+//         res.json(works); // Trả về danh sách công việc
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }
+// });
+
+workRouter.get('/api/admin/work_hours', async (req, res) => {
+  try {
+    // Lấy tham số từ query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const skip = (page - 1) * limit;
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+
+    // Xây dựng điều kiện truy vấn
+    const query = {};
+
+    // Lọc theo khoảng ngày nếu có
+    if (startDate && endDate) {
+      endDate.setHours(23, 59, 59, 999);
+      query.checkInTime = { $gte: startDate, $lte: endDate };
     }
+
+    // Sắp xếp theo checkInTime giảm dần
+    const sort = { checkInTime: -1 };
+
+    // Lấy danh sách công việc
+    const workHours = await Work.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Lấy thông tin người dùng cho từng workHours
+    const workHoursWithUser = await Promise.all(
+      workHours.map(async (work) => {
+        const user = await User.findById(work.userId).lean(); // Lấy thông tin người dùng
+        return {
+          ...work,
+          user: user || null, // Thêm thông tin người dùng vào từng bản ghi
+        };
+      })
+    );
+
+    // Tính tổng số bản ghi để tính tổng số trang
+    const totalItems = await Work.countDocuments(query);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Trả về kết quả
+    res.json({
+      data: workHoursWithUser,
+      currentPage: page,
+      totalPages,
+      totalItems,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
+
 
 
 workRouter.get('/api/work_checkin/:userId', async (req, res) => {
@@ -115,12 +184,10 @@ workRouter.post('/api/work_checkin', async (req, res) => {
       plan: plan,
       note: note,
     });
-     // 👇 Emit event tới client
-     console.log('📣 Emitting work_checkIn event to socket');
-     global._io.emit('work_checkIn', newWork); // emit tới tất cả client
-
     // Lưu vào database
     const savedWork = await newWork.save();
+         // 👇 Emit event tới client
+    
     return res.status(201).json(savedWork);
   } catch (e) {
     console.error('❌ Error creating work:', e.message);
