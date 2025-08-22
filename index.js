@@ -13,6 +13,8 @@ const mongoose = require('mongoose'); // Thư viện để kết nối và tươ
 const userRouter = require('./routers/user'); // Router để xử lý các yêu cầu liên quan đến người dùng
 const workRouter = require('./routers/work'); // Router để xử lý các yêu cầu liên quan đến công việc
 const leaveRouter = require('./routers/leave'); // Router để xử lý các yêu cầu liên quan đến nghỉ phép    
+const departmentRouter = require('./routers/department'); // Router để xử lý các yêu cầu liên quan đến phòng ban  
+const positionRouter = require('./routers/position'); // Router để xử lý các yêu cầu liên quan đến vị trí công việc 
 const PORT = 3000;
 const app = express();
 
@@ -77,6 +79,8 @@ app.get('/api/ping', (req, res) => {
 app.use(userRouter); // Sử dụng router người dùng để xử lý các yêu cầu liên quan đến người dùng
 app.use(workRouter); // Sử dụng router công việc để xử lý các yêu cầu liên quan đến công việc
 app.use(leaveRouter); // Sử dụng router nghỉ phép để xử lý các yêu cầu liên quan đến nghỉ phép
+app.use(departmentRouter); // Sử dụng router phòng ban để xử lý các yêu cầu liên quan đến phòng ban
+app.use(positionRouter); // Sử dụng router vị trí công việc để xử lý các yêu cầu liên quan đến vị trí công việc
 // Connect to MongoDB using environment variable
 mongoose.connect(process.env.MONGODB_URI)
   .then(async() => {
@@ -102,6 +106,29 @@ mongoose.connect(process.env.MONGODB_URI)
   //     }
   //   }
   // );
+  
+// const result = await Leave.updateMany(
+//   {}, // {} nghĩa là không filter, chọn tất cả document
+//   { $set: { status: "Pending" } }
+// );
+
+
+
+// const users = await User.find().lean();
+
+// const bulkOps = users.map(u => ({
+//   updateOne: {
+//     filter: { _id: u._id },
+//     update: { $set: { createdAt: u._id.getTimestamp().toISOString() } }
+//   }
+// }));
+
+// if (bulkOps.length > 0) {
+//   const result = await User.bulkWrite(bulkOps);
+//   console.log(`✅ Đã cập nhật ${result.modifiedCount} user`);
+// } else {
+//   console.log('Không có user nào cần cập nhật');
+// }
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);
@@ -114,6 +141,6 @@ mongoose.connect(process.env.MONGODB_URI)
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server with Socket.IO is running-${PORT}`);
-});
 
+});
 

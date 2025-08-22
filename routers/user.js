@@ -157,6 +157,24 @@ authRouter.post('/api/user/verify-otp', async (req, res) => {
   }
 });
 
+
+authRouter.delete('/api/admin/user/:id', async (req, res) => {
+  try { 
+    const { id } = req.params;
+
+    const user = await User.findByIdAndDelete(id);
+
+    if (!user) {
+      return res.status(404).json({ error: "user not found" });
+    }
+
+    res.status(200).json({ message: "user deleted successfully", user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 authRouter.post('/api/user/reset-password', async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
@@ -209,7 +227,7 @@ authRouter.post('/api/register', async (req, res) => {
         // Kiểm tra xem người dùng đã tồn tại chưa     
         const existingUser = await User.findOne({ email: email });  
         if (existingUser) {
-            return res.status(400).json({ message: 'Email đã tồn tại' });
+            return res.status(400).json({ message: 'Email already exists, please enter another email' });
          }else{
             
             // Chắc là tạo định dạng Băm chuỗi
@@ -221,7 +239,7 @@ authRouter.post('/api/register', async (req, res) => {
  
             var user = new User({fullName, birthDay, sex, email, password: hashedPassword}); //3Thso này lấy từ ID
             user = await user.save();
-            res.json({user});   
+            res.json(user);   
         }
 
     } catch (e) {
@@ -268,7 +286,63 @@ authRouter.get('/api/users', async (req, res) => {
     }
 });
 
+authRouter.get('/api/admin/users_pagination', async (req, res) => {
+    try {
+// Lấy các tham số phân trang từ query
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+
+ const filterFullName = req.query.filterFullName || ""; // lấy từ query, nếu không có thì rỗng
+        // Nếu có search thì thêm điều kiện tìm theo tên (không phân biệt hoa thường)
+           // Điều kiện lọc
+          const filter = { role: { $ne: 'admin' } };
+      if (filterFullName) {
+      filter.fullName = { $regex: filterFullName, $options: 'i' }; // tìm kiếm không phân biệt hoa thường
+    }
+        // Lấy danh sách user (ngoại trừ admin)
+        // const users = await User.find({ role: { $ne: 'admin' } })
+        const users = await User.find(filter)
+        .sort({ _id: -1 })
+        .skip(skip)
+            .limit(limit)
+            .lean(); // .lean() giúp trả về plain object thay vì mongoose doc
+
+ // Đếm tổng số user (không lấy admin)
+        const totalUsers = await User.countDocuments({ role: { $ne: 'admin' } });
+
+        res.json({
+            page,
+            limit,
+            totalUsers,
+            totalPages: Math.ceil(totalUsers / limit),
+            data: users
+        });
+      
+    } catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }
+});
+
+
 authRouter.get('/api/user/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const user = await User.findById(id); // ✅ Sửa chỗ này
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json(user); // Trả về user tìm thấy
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+authRouter.get('/api/user/:idUser', async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -308,7 +382,64 @@ authRouter.put('/api/user/:id', async (req, res) => {
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }   
 });
+authRouter.put('/api/admin/user/:id', async (req, res) => {
+    try {
+        const { id } = req.params; // Lấy ID người dùng từ tham số URL
+        const { department, position} = req.body; // Lấy thông tin người dùng từ body của yêu cầu
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { department, position},
+            { new: true } // Trả về người dùng đã cập nhật
+        );
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' }); // Trả về lỗi nếu không tìm thấy người dùng
+        } 
+        // 👇 Emit event tới client
+        console.log('📣 Emitting user_updated event to socket');
+        global._io.emit('user_updated', updatedUser); // emit tới tất cả client
+
+        return res.status(200).json(updatedUser); // Trả về người dùng đã cập nhật
+    } catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }   
+});
 
 
 
+authRouter.put('/api/admin/organization_user/:id', async (req, res) => {
+    try {
+        const { id } = req.params; // Lấy ID người dùng từ tham số URL
+        const { departmentId, positionId} = req.body; // Lấy thông tin người dùng từ body của yêu cầu
+        const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { departmentId, positionId},
+            { new: true } // Trả về người dùng đã cập nhật
+        );
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' }); // Trả về lỗi nếu không tìm thấy người dùng
+        } 
+
+        return res.status(200).json(updatedUser); // Trả về người dùng đã cập nhật
+    } catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }   
+});
+
+// authRouter.put('/api/admin/position_user/:id', async (req, res) => {
+//     try {
+//         const { id } = req.params; // Lấy ID người dùng từ tham số URL
+//         const { positionId} = req.body; // Lấy thông tin người dùng từ body của yêu cầu
+//         const updatedUser = await User.findByIdAndUpdate(
+//             id,
+//             { positionId},
+//             { new: true } // Trả về người dùng đã cập nhật
+//         );
+//         if (!updatedUser) {
+//             return res.status(404).json({ message: 'User not found' }); // Trả về lỗi nếu không tìm thấy người dùng
+//         } 
+//         return res.status(200).json(updatedUser); // Trả về người dùng đã cập nhật
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }   
+// });
 module.exports = authRouter;

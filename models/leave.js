@@ -23,6 +23,11 @@ const leaveSchema = mongoose.Schema(
             enum: ['Full Time', 'Part Time'],
             required: true,
         },
+        rejectionReason: {
+            type: String,
+            default: null,
+            trim: true,
+        },
         reason: {
             type: String,
             required: true,

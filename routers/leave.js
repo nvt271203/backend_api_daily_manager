@@ -1,5 +1,6 @@
 const express = require('express'); // Framework để tạo các API HTTP.
 const Leave = require('../models/leave'); // Đây là mô hình của một đơn xin nghỉ phép, bao gồm các thông tin như ngày bắt đầu, ngày kết thúc, loại thời gian nghỉ, lý do, trạng thái và ID người dùng.
+const User = require('../models/user'); // Mô hình người dùng, để lấy thông tin người dùng liên quan đến đơn xin nghỉ phép.
 const leaveRouter = express.Router(); // Khởi tạo một router cho các API liên quan đến nghỉ phép.
 
 leaveRouter.post('/api/leave', async (req, res) => {
@@ -9,25 +10,39 @@ leaveRouter.post('/api/leave', async (req, res) => {
         const leave = new Leave({dateCreated, startDate, endDate, leaveType, leaveTimeType, reason, userId });
         // Lưu đơn xin nghỉ phép vào cơ sở dữ liệu
         await leave.save();
+         console.log('📣 Emitting leave_request event to socket');
+        global._io.emit('leave_request', leave); // emit tới tất cả client
+
         res.status(201).json(leave); // Trả về đơn xin nghỉ phép đã tạo với mã trạng thái 201 (Created)
     } catch (e) {
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
 });
 
-leaveRouter.get('/api/leave/:userId', async (req, res) => {
+// leaveRouter.get('/api/leave/:userId', async (req, res) => {
+//     try {
+//         const { userId } = req.params;
+//         const leaves = await Leave.find({ userId }); // Tìm đơn xin nghỉ phép theo userId từ tham số URL
+//         if (!leaves || leaves.length == 0) {
+//             return res.status(404).json({ message: 'Leave of user not found' }); // Trả về lỗi nếu không tìm thấy đơn xin nghỉ phép
+//         }
+//         res.json(leaves); // Trả về đơn xin nghỉ phép tìm thấy
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }
+// }); 
+leaveRouter.get('/api/leave/:id', async (req, res) => {
     try {
-        const { userId } = req.params;
-        const leaves = await Leave.find({ userId }); // Tìm đơn xin nghỉ phép theo userId từ tham số URL
-        if (!leaves || leaves.length == 0) {
+        const { id } = req.params;
+        const leave = await Leave.findById(id); // Tìm đơn xin nghỉ phép theo userId từ tham số URL
+        if (!leave || leave.length == 0) {
             return res.status(404).json({ message: 'Leave of user not found' }); // Trả về lỗi nếu không tìm thấy đơn xin nghỉ phép
         }
-        res.json(leaves); // Trả về đơn xin nghỉ phép tìm thấy
+        res.json(leave); // Trả về đơn xin nghỉ phép tìm thấy
     } catch (e) {
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
 }); 
-
 // leaveRouter.get('/api/leaves_user_pagination/:userId', async (req, res) => {
 //     try {
 //         const { userId } = req.params;
@@ -230,6 +245,149 @@ const sort = {
 }); 
 
 
+leaveRouter.get('/api/admin/leaves_user_pagination', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+    const skip = (page - 1) * limit;
+    const filterYear = req.query.filterYear ? parseInt(req.query.filterYear) : new Date().getFullYear();
+    const sortField = req.query.sortField || 'startDate'; // Mặc định là startDate
+    const sortOrder = req.query.sortOrder || 'desc'; // Mặc định giảm dần
+    const status = req.query.status || 'all'; // Mặc định tất cả trạng thái
+
+    // Xây dựng điều kiện lọc
+    const query = {};
+
+    // Lọc theo năm dựa trên startDate
+    // if (filterYear) {
+    //   query.startDate = {
+    //     $gte: new Date(filterYear, 0, 1),
+    //     $lte: new Date(filterYear, 11, 31, 23, 59, 59, 999),
+    //   };
+    // }
+// Lọc theo năm dựa trên trường sắp xếp (sortField)
+    if (filterYear) {
+      query[sortField] = {
+        $gte: new Date(filterYear, 0, 1),
+        $lte: new Date(filterYear, 11, 31, 23, 59, 59, 999),
+      };
+    }
+    // Lọc theo trạng thái
+    if (status !== 'all') {
+      query.status = status; // Chỉ thêm điều kiện nếu status không phải 'all'
+    }
+
+    // Xây dựng object sắp xếp
+    // const sort = {};
+    // sort[sortField] = sortOrder === 'asc' ? 1 : -1;
+const sort = {
+  [sortField]: sortOrder === 'asc' ? 1 : -1,
+  _id: sortOrder === 'asc' ? 1 : -1, // Secondary sort để ổn định thứ tự
+};
+
+    // Lấy danh sách leaves
+    const leaves = await Leave.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+// Lấy thông tin user cho mỗi leave
+    const leavesWithUser = await Promise.all(
+      leaves.map(async (leave) => {
+        const user = await User.findById(leave.userId).lean(); // Lấy thông tin user
+        return {
+          ...leave,
+          user: user || null, // Thêm thông tin user, nếu không tìm thấy thì là null
+        };
+      })
+    );
+
+
+
+    console.log('Backend leaves order:', leaves.map(leave => ({ dateCreated: leave.dateCreated, startDate: leave.startDate })));
+
+    // Tính tổng số leaves theo tháng-năm dựa trên startDate
+    const leavesByMonthYear = await Leave.aggregate([
+      { $match: query }, // Sử dụng query đã xây dựng để lọc
+      {
+        $group: {
+          // _id: {
+          //   year: { $year: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+          //   month: { $month: { date: '$startDate', timezone: 'Asia/Ho_Chi_Minh' } },
+          // },
+           _id: {
+        year: { $year: { date: '$' + sortField, timezone: 'Asia/Ho_Chi_Minh' } },
+        month: { $month: { date: '$' + sortField, timezone: 'Asia/Ho_Chi_Minh' } },
+      },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          monthYear: {
+            $concat: [
+              {
+                $cond: [
+                  { $lt: ['$_id.month', 10] },
+                  { $concat: ['0', { $toString: '$_id.month' }] },
+                  { $toString: '$_id.month' },
+                ],
+              },
+              '/',
+              { $toString: '$_id.year' },
+            ],
+          },
+          count: 1,
+        },
+      },
+      {
+        $sort: { 'monthYear': -1 } // Sắp xếp tháng-năm từ mới nhất đến cũ nhất
+      },
+    ]);
+
+    // Trả về kết quả
+    res.json({
+      data: leavesWithUser,
+      currentPage: page,
+      totalPages: Math.ceil(await Leave.countDocuments(query) / limit),
+      totalItems: await Leave.countDocuments(query),
+      leavesByMonthYear,
+    });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}); 
+
+
+leaveRouter.put('/api/admin/leave_request_handle/:id', async (req, res) => {
+    try {
+        const { id } = req.params; // Lấy ID đơn phép từ tham số URL  
+        const {status} = req.body; // Lấy trạng thái từ query string
+        const {rejectionReason} = req.body; // Lấy lý do từ query string
+        const updateStatusLeave = await Leave.findByIdAndUpdate(
+            id,
+            { status, rejectionReason }, // Cập nhật trạng thái đơn phép// Cập nhật lý do từ query string  
+            { new: true } // Trả về tài liệu đã cập nhật  
+        );
+        if (!updateStatusLeave) {
+            return res.status(404).json({ message: 'Leave request not found' }); // Trả về lỗi nếu không tìm thấy đơn phép
+        }
+                console.log('📣 Emitting leave_status_update event to socket');
+        global._io.emit('leave_request_status_update', updateStatusLeave); // emit tới tất cả client
+
+        res.json(updateStatusLeave); // Trả về đơn phép tìm thấy
+
+      } catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }
+  });
+
+
+
+
 
 leaveRouter.put('/api/leave_remove_isnew/:id', async (req, res) => {
     try {
@@ -243,6 +401,23 @@ const leave = await Leave.findByIdAndUpdate(
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
 });
+
+
+leaveRouter.put('/api/admin/leave_remove_isnew/:id', async (req, res) => {
+    try {
+const leave = await Leave.findByIdAndUpdate(
+      req.params.id,
+      { isNew: false },
+      { new: true } // Trả về tài liệu đã cập nhật
+)
+   res.json(leave); // Trả về đơn xin nghỉ phép đã cập nhật
+    }catch (e) {
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+    }
+});
+
+
+
 
 leaveRouter.put('/api/leave/:leaveId', async (req, res) => {
     try {

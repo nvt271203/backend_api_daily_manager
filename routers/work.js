@@ -2,43 +2,67 @@ const express = require('express'); // Framework để tạo các API HTTP.
 const Work = require('../models/work'); // Đây là mô hình của một công việc, bao gồm các thông tin như thời gian check-in, check-out, thời gian làm việc, báo cáo, kế hoạch và ID người dùng.
 const User = require('../models/user'); // Mô hình người dùng, để lấy thông tin người dùng liên quan đến công việc.
 const workRouter = express.Router(); // Khởi tạo một router cho các API liên quan đến công việc.
-
-// workRouter.post('/api/work', async (req, res) => {
-//     try {
-//         const { checkInTime, checkOutTime, workTime, report, plan, note, userId } = req.body;
-//         // Tạo một công việc mới vớ i các thông tin từ yêu cầu
-//         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
-//         // Lưu công việc vào cơ sở dữ liệu
-//         await work.save();
-
-
-        
-//          console.log('📣 Emitting work_checkIn event to socket');
-//      global._io.emit('work_checkIn', work); // emit tới tất cả client
-
-//         res.status(201).json(work); // Trả về công việc đã tạo với mã trạng thái 201 (Created)
-//     } catch (e) {
-//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
-//     }
-// });
+const mongoose = require('mongoose');
 workRouter.post('/api/work', async (req, res) => {
     try {
         const { checkInTime, checkOutTime, workTime, report, plan, note, userId } = req.body;
+        // Tạo một công việc mới vớ i các thông tin từ yêu cầu
         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
+        // Lưu công việc vào cơ sở dữ liệu
+        // Lấy thông tin người dùng từ userId
         await work.save();
-        // Populate thông tin user từ userId
-        const populatedWork = await Work.findById(work._id).populate('userId', 'fullName'); // Chỉ lấy fullName
-        if (!populatedWork) {
-            throw new Error('Failed to populate work data');
-        }
-        console.log('📣 Emitting work_checkIn event to socket with populated data: ', populatedWork.toJSON());
-        global._io.emit('work_checkIn', populatedWork.toJSON()); // Phát dữ liệu đã populate
-        res.status(201).json(populatedWork); // Trả về dữ liệu đã populate
+        const user = await User.findById(userId).lean(); // Sử dụng lean() để lấy object JavaScript thuần túy
+// Tạo đối tượng work với thông tin user
+        const workWithUser = {
+            ...work.toObject(), // Chuyển work thành object JavaScript
+            user: user || null // Thêm thông tin user, nếu không tìm thấy thì là null
+        };
+
+        
+         console.log('📣 Emitting work_checkIn event to socket');
+        global._io.emit('work_checkIn', workWithUser); // emit tới tất cả client
+
+        res.status(201).json(workWithUser); // Trả về công việc đã tạo với mã trạng thái 201 (Created)
     } catch (e) {
-        console.error('Error in /api/work: ', e);
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
 });
+// workRouter.post('/api/work', async (req, res) => {
+//     try {
+//         const { checkInTime, checkOutTime, workTime, report, plan, note, userId } = req.body;
+
+//         // Validate userId
+//         if (!mongoose.Types.ObjectId.isValid(userId)) {
+//             throw new Error('Invalid userId');
+//         }
+
+//         // Tạo và lưu công việc mới
+//         const work = new Work({ checkInTime, checkOutTime, workTime, report, plan, note, userId });
+//         await work.save();
+
+//         // Populate toàn bộ thông tin của User (không dùng lean để giữ document Mongoose)
+//         const populatedWork = await Work.findById(work._id).populate({
+//             path: 'userId',
+//             select: '-password -resetPasswordToken -resetPasswordExpires' // Loại bỏ các trường nhạy cảm trực tiếp
+//         });
+//         if (!populatedWork) {
+//             throw new Error('Failed to populate work data');
+//         }
+
+//         // Debug: Kiểm tra dữ liệu trước khi gửi
+//         console.log('Debug - Populated Work: ', populatedWork.toJSON());
+
+//         // Phát sự kiện socket
+//         console.log('📣 Emitting work_checkIn event to socket with populated data: ', populatedWork.toJSON());
+//         global._io.emit('work_checkIn', populatedWork.toJSON());
+
+//         // Trả về phản hồi (sẽ tự động chuyển thành JSON)
+//         res.status(201).json(populatedWork);
+//     } catch (e) {
+//         console.error('Error in /api/work: ', e);
+//         res.status(500).json({ error: e.message });
+//     }
+// });
 workRouter.get('/api/works', async (req, res) => {
     try {
         const works = await Work.find(); // Lấy tất cả công việc từ cơ sở dữ liệu
@@ -115,7 +139,7 @@ workRouter.get('/api/admin/work_hours', async (req, res) => {
     const skip = (page - 1) * limit;
     const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
     const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
-
+console.log('startDate:', startDate, 'endDate:', endDate);
     // Xây dựng điều kiện truy vấn
     const query = {};
 
@@ -250,11 +274,24 @@ workRouter.put('/api/work/:id', async (req, res) => {
             { new: true } // Trả về tài liệu đã cập nhật
         );
 
-        
+                
+
         if (!updateWork) {
             return res.status(404).json({ message: 'Work not found' }); // Trả về lỗi nếu không tìm thấy công việc
         }
-        return res.status(200).json(updateWork); // Trả về mã trạng thái // Trả về công việc đã cập nhật
+        
+         const userId = updateWork.userId; // ✅ Lấy userId từ work
+        const user = await User.findById(userId).lean(); // Sử dụng lean() để lấy object JavaScript thuần túy
+// Tạo đối tượng work với thông tin user
+        const workWithUser = {
+            ...updateWork.toObject(), // Chuyển work thành object JavaScript
+            user: user || null // Thêm thông tin user, nếu không tìm thấy thì là null
+        };
+
+         console.log('📣 Emitting work_checkOut event to socket');
+     global._io.emit('work_checkOut', workWithUser); // emit tới tất cả client
+
+        return res.status(200).json(workWithUser); // Trả về mã trạng thái // Trả về công việc đã cập nhật
     } catch (e) {
         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
     }
@@ -332,25 +369,25 @@ workRouter.get('/api/work/active/:userId/:checkInTime', async (req, res) => {
 
 
 
-workRouter.put('/api/work/:id', async (req, res) => {
-    try {
-        const { id } = req.params; // Lấy ID công việc từ tham số URL
-        const {checkOutTime, workTime, report, plan, note} = req.body; // Lấy các thông tin cập nhật từ yêu cầu
-        const updateWork = await Work.findByIdAndUpdate(
-            id, 
-            { checkOutTime, workTime, report, plan, note }, // Cập nhật các trường cần thiết
-            { new: true } // Trả về tài liệu đã cập nhật
-        );
+// workRouter.put('/api/work/:id', async (req, res) => {
+//     try {
+//         const { id } = req.params; // Lấy ID công việc từ tham số URL
+//         const {checkOutTime, workTime, report, plan, note} = req.body; // Lấy các thông tin cập nhật từ yêu cầu
+//         const updateWork = await Work.findByIdAndUpdate(
+//             id, 
+//             { checkOutTime, workTime, report, plan, note }, // Cập nhật các trường cần thiết
+//             { new: true } // Trả về tài liệu đã cập nhật
+//         );
 
         
-        if (!updateWork) {
-            return res.status(404).json({ message: 'Work not found' }); // Trả về lỗi nếu không tìm thấy công việc
-        }
-        return res.status(200).json(updateWork); // Trả về mã trạng thái // Trả về công việc đã cập nhật
-    } catch (e) {
-        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
-    }
-});
+//         if (!updateWork) {
+//             return res.status(404).json({ message: 'Work not found' }); // Trả về lỗi nếu không tìm thấy công việc
+//         }
+//         return res.status(200).json(updateWork); // Trả về mã trạng thái // Trả về công việc đã cập nhật
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }
+// });
     
 module.exports = workRouter; // Xuất router để sử dụng trong các tệp khác
 // Đây là các API liên quan đến công việc, bao gồm tạo công việc mới và lấy

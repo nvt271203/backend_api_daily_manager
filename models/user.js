@@ -61,6 +61,21 @@ const userSchema = mongoose.Schema(
         default: null,
         trim: true,
     },
+    departmentId:{
+        type: String,
+        default: null,
+        trim: true,
+    },
+    positionId:{
+        type: String,
+        default: null,
+        trim: true,
+    },
+    createdAt:{
+        type: String,
+        default: null,
+        trim: true,
+    },
     resetPasswordToken: {
   type: String,
 },
