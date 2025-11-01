@@ -130,61 +130,131 @@ workRouter.get('/api/works_user_pagination/:userId', async (req, res) => {
 //         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
 //     }
 // });
-
 workRouter.get('/api/admin/work_hours', async (req, res) => {
   try {
-    // Lấy tham số từ query
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
     const skip = (page - 1) * limit;
+
     const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
     const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
-console.log('startDate:', startDate, 'endDate:', endDate);
-    // Xây dựng điều kiện truy vấn
-    const query = {};
 
-    // Lọc theo khoảng ngày nếu có
+    // Điều kiện lọc
+    const match = {};
     if (startDate && endDate) {
       endDate.setHours(23, 59, 59, 999);
-      query.checkInTime = { $gte: startDate, $lte: endDate };
+      match.checkInTime = { $gte: startDate, $lte: endDate };
     }
 
-    // Sắp xếp theo checkInTime giảm dần
-    const sort = { checkInTime: -1 };
+    const workHours = await Work.aggregate([
+  { $match: match },
+  { $sort: { checkInTime: -1 } },
+  { $skip: skip },
+  { $limit: limit },
 
-    // Lấy danh sách công việc
-    const workHours = await Work.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean();
+  // Lookup User
+  {
+    $lookup: {
+      from: "users",
+      localField: "userId",
+      foreignField: "_id",
+      as: "user",
+      pipeline: [
+        // Join Department
+        {
+          $lookup: {
+            from: "departments",
+            localField: "departmentId",
+            foreignField: "_id",
+            as: "department"
+          }
+        },
+        { $unwind: { path: "$department", preserveNullAndEmptyArrays: true } },
 
-    // Lấy thông tin người dùng cho từng workHours
-    const workHoursWithUser = await Promise.all(
-      workHours.map(async (work) => {
-        const user = await User.findById(work.userId).lean(); // Lấy thông tin người dùng
-        return {
-          ...work,
-          user: user || null, // Thêm thông tin người dùng vào từng bản ghi
-        };
-      })
-    );
+        // Join Position
+        {
+          $lookup: {
+            from: "positions",
+            localField: "positionId",
+            foreignField: "_id",
+            as: "position"
+          }
+        },
+        { $unwind: { path: "$position", preserveNullAndEmptyArrays: true } }
+      ]
+    }
+  },
+  { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } }
+]);
 
-    // Tính tổng số bản ghi để tính tổng số trang
-    const totalItems = await Work.countDocuments(query);
-    const totalPages = Math.ceil(totalItems / limit);
 
-    // Trả về kết quả
+    const totalItems = await Work.countDocuments(match);
+
     res.json({
-      data: workHoursWithUser,
+      data: workHours,
       currentPage: page,
-      totalPages,
+      totalPages: Math.ceil(totalItems / limit),
       totalItems,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
+
+// workRouter.get('/api/admin/work_hours', async (req, res) => {
+//   try {
+//     // Lấy tham số từ query
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 15;
+//     const skip = (page - 1) * limit;
+//     const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+//     const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+// console.log('startDate:', startDate, 'endDate:', endDate);
+//     // Xây dựng điều kiện truy vấn
+//     const query = {};
+
+//     // Lọc theo khoảng ngày nếu có
+//     if (startDate && endDate) {
+//       endDate.setHours(23, 59, 59, 999);
+//       query.checkInTime = { $gte: startDate, $lte: endDate };
+//     }
+
+//     // Sắp xếp theo checkInTime giảm dần
+//     const sort = { checkInTime: -1 };
+
+//     // Lấy danh sách công việc
+//     const workHours = await Work.find(query)
+//       .sort(sort)
+//       .skip(skip)
+//       .limit(limit)
+//       .lean();
+
+//     // Lấy thông tin người dùng cho từng workHours
+//     const workHoursWithUser = await Promise.all(
+//       workHours.map(async (work) => {
+//         const user = await User.findById(work.userId).lean(); // Lấy thông tin người dùng
+//         return {
+//           ...work,
+//           user: user || null, // Thêm thông tin người dùng vào từng bản ghi
+//         };
+//       })
+//     );
+
+//     // Tính tổng số bản ghi để tính tổng số trang
+//     const totalItems = await Work.countDocuments(query);
+//     const totalPages = Math.ceil(totalItems / limit);
+
+//     // Trả về kết quả
+//     res.json({
+//       data: workHoursWithUser,
+//       currentPage: page,
+//       totalPages,
+//       totalItems,
+//     });
+//   } catch (e) {
+//     res.status(500).json({ error: e.message });
+//   }
+// });
 
 
 
@@ -366,7 +436,27 @@ workRouter.get('/api/work/active/:userId/:checkInTime', async (req, res) => {
 });
 
 
+workRouter.get('/api/admin/work_not_checkout_count', async (req, res) => {
+  try {
+    const count = await Work.countDocuments({ checkOutTime: null });
+    res.json({ totalWorkNotCheckOut: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
+workRouter.get('/api/admin/work_not_report_count', async (req, res) => {
+  try {
+    const count = await Work.countDocuments({ 
+      $or: [
+        { plan: { $in: [null, ""] } },
+        { report: { $in: [null, ""] } }
+    ] });
+    res.json({ totalWorkNotReport: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 // workRouter.put('/api/work/:id', async (req, res) => {

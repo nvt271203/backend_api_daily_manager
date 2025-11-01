@@ -15,6 +15,8 @@ const workRouter = require('./routers/work'); // Router để xử lý các yêu
 const leaveRouter = require('./routers/leave'); // Router để xử lý các yêu cầu liên quan đến nghỉ phép    
 const departmentRouter = require('./routers/department'); // Router để xử lý các yêu cầu liên quan đến phòng ban  
 const positionRouter = require('./routers/position'); // Router để xử lý các yêu cầu liên quan đến vị trí công việc 
+const messageRouter = require('./routers/message'); // Router để xử lý các yêu cầu liên quan đến vị trí công việc 
+const roomRouter = require('./routers/room'); // Router để xử lý các yêu cầu liên quan đến phòng chat
 const PORT = 3000;
 const app = express();
 
@@ -81,10 +83,29 @@ app.use(workRouter); // Sử dụng router công việc để xử lý các yêu
 app.use(leaveRouter); // Sử dụng router nghỉ phép để xử lý các yêu cầu liên quan đến nghỉ phép
 app.use(departmentRouter); // Sử dụng router phòng ban để xử lý các yêu cầu liên quan đến phòng ban
 app.use(positionRouter); // Sử dụng router vị trí công việc để xử lý các yêu cầu liên quan đến vị trí công việc
+app.use(messageRouter); // Sử dụng router message để xử lý các yêu cầu liên quan đến message
+app.use(roomRouter); // Sử dụng router room để xử lý các yêu cầu liên quan đến room chat
+
 // Connect to MongoDB using environment variable
 mongoose.connect(process.env.MONGODB_URI)
   .then(async() => {
     console.log('MongoDB connected');
+
+
+    // const result = await mongoose.connection.db
+    //   .collection("leaves")
+    //   .deleteMany({ userId: "688001ce7e672d1e4b9353ac" });
+
+    // console.log("🔥 Deleted leaves:", result.deletedCount);
+    // process.exit();
+
+//  const result = await mongoose.connection.db
+//       .collection("users")
+//       .updateMany({}, { $unset: { position: 1, department: 1 } });
+
+//     console.log("🔥 Raw result:", result);
+//     process.exit();
+
     // // 🧹 Xóa dữ liệu
     // try {
     //   const result = await Leave.deleteOne({ _id: new ObjectId("68800b447e672d1e4b93542a") });
@@ -106,12 +127,17 @@ mongoose.connect(process.env.MONGODB_URI)
   //     }
   //   }
   // );
-  
+  // Sử dụng toán tử $unset để xóa các trường 'position' và 'department'
+
 // const result = await Leave.updateMany(
 //   {}, // {} nghĩa là không filter, chọn tất cả document
-//   { $set: { status: "Pending" } }
+//   { $set: { status: "Approved" } }
 // );
 
+// const result = await User.updateMany(
+//   {}, // {} nghĩa là không filter, chọn tất cả document
+//   { $set: { status: "true" } }
+// );
 
 
 // const users = await User.find().lean();

@@ -106,5 +106,8 @@ departmentRouter.get('/api/admin/departments_pagination', async (req, res)=>{
     res.status(500).json({ error: error.message });
   }
 
+
+
+
 })
 module.exports = departmentRouter;

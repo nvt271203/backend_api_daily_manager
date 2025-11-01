@@ -246,32 +246,63 @@ authRouter.post('/api/register', async (req, res) => {
         res.status(500).json({error: e.message});
     }
 });
-
-
+// API Đăng nhập - PHIÊN BẢN CẬP NHẬT
 authRouter.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
     try {
-        // Tìm người dùng theo email
-        const findUser = await User.findOne({email });
-        if (!findUser) {
-            return res.status(400).json({ message: 'User not found with this email' });
-        }else{
-            const isMatch = await bcrypt.compare(password, findUser.password); // so sánh mật khẩu chưa mã hoá với mật khẩu đã mã hóa trong cơ sở dữ liệu
-            if (!isMatch) {
-                return res.status(400).json({ message: 'Password is incorrect, please re-enter password' });
-            }else{
-                // Tạo token định danh người dùng đã đăng nhập thành công
-                const token = jwt.sign({id: findUser._id}, "passwordKey");
-                const { password, ...userWithoutPassword } = findUser._doc; // loại bỏ mật khẩu khỏi đối tượng người dùng
-                     //Lưu 2 key là token và đối tượng User
-                res.json({token, user: userWithoutPassword});
-            }
+        const { email, password } = req.body;
+
+        // 1. Tìm người dùng theo email
+        const user = await User.findOne({ email });
+        if (!user) {
+            // Nếu không tìm thấy, trả về lỗi và kết thúc sớm
+            return res.status(400).json({ error: 'User with this email does not exist!' });
         }
-}
-    catch (e) {
-        res.status(500).json({error: e.message});
+
+        // 2. So sánh mật khẩu
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            // Nếu mật khẩu sai, trả về lỗi và kết thúc sớm
+            return res.status(400).json({ error: 'Incorrect password.' });
+        }
+
+        // 3. Nếu mọi thứ đều đúng, tạo token
+        // !!! SỬ DỤNG CÙNG MỘT KHÓA BÍ MẬT VỚI FILE middlewares/auth.js
+        const token = jwt.sign({ id: user._id }, 'xHajhJakVk6bA5XP');
+                                                // Hoặc tốt hơn: process.env.JWT_SECRET
+
+        // 4. Loại bỏ mật khẩu khỏi đối tượng trả về và gửi response
+        const { password: userPassword, ...userWithoutPassword } = user._doc;
+        res.json({ token, user: userWithoutPassword });
+
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
+
+// authRouter.post('/api/login', async (req, res) => {
+//     const { email, password } = req.body;
+//     try {
+//         // Tìm người dùng theo email
+//         const findUser = await User.findOne({email });
+//         if (!findUser) {
+//             return res.status(400).json({ message: 'User not found with this email' });
+//         }else{
+//             const isMatch = await bcrypt.compare(password, findUser.password); // so sánh mật khẩu chưa mã hoá với mật khẩu đã mã hóa trong cơ sở dữ liệu
+//             if (!isMatch) {
+//                 return res.status(400).json({ message: 'Password is incorrect, please re-enter password' });
+//             }else{
+//                 // Tạo token định danh người dùng đã đăng nhập thành công
+//                 const token = jwt.sign({id: findUser._id}, "passwordKey");
+//                 const { password, ...userWithoutPassword } = findUser._doc; // loại bỏ mật khẩu khỏi đối tượng người dùng
+//                      //Lưu 2 key là token và đối tượng User
+//                 res.json({token, user: userWithoutPassword});
+//             }
+//         }
+// }
+//     catch (e) {
+//         res.status(500).json({error: e.message});
+//     }
+// });
 
 
 authRouter.get('/api/users', async (req, res) => {
@@ -286,43 +317,108 @@ authRouter.get('/api/users', async (req, res) => {
     }
 });
 
-authRouter.get('/api/admin/users_pagination', async (req, res) => {
-    try {
-// Lấy các tham số phân trang từ query
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const skip = (page - 1) * limit;
+// authRouter.get('/api/admin/users_pagination', async (req, res) => {
+//     try {
+// // Lấy các tham số phân trang từ query
+//         const page = parseInt(req.query.page) || 1;
+//         const limit = parseInt(req.query.limit) || 20;
+//         const skip = (page - 1) * limit;
 
 
- const filterFullName = req.query.filterFullName || ""; // lấy từ query, nếu không có thì rỗng
-        // Nếu có search thì thêm điều kiện tìm theo tên (không phân biệt hoa thường)
-           // Điều kiện lọc
-          const filter = { role: { $ne: 'admin' } };
-      if (filterFullName) {
-      filter.fullName = { $regex: filterFullName, $options: 'i' }; // tìm kiếm không phân biệt hoa thường
-    }
-        // Lấy danh sách user (ngoại trừ admin)
-        // const users = await User.find({ role: { $ne: 'admin' } })
-        const users = await User.find(filter)
-        .sort({ _id: -1 })
-        .skip(skip)
-            .limit(limit)
-            .lean(); // .lean() giúp trả về plain object thay vì mongoose doc
+//  const filterFullName = req.query.filterFullName || ""; // lấy từ query, nếu không có thì rỗng
+//         // Nếu có search thì thêm điều kiện tìm theo tên (không phân biệt hoa thường)
+//            // Điều kiện lọc
+//           const filter = { role: { $ne: 'admin' } };
+//       if (filterFullName) {
+//       filter.fullName = { $regex: filterFullName, $options: 'i' }; // tìm kiếm không phân biệt hoa thường
+//     }
+//         // Lấy danh sách user (ngoại trừ admin)
+//           // const users = await User.find({ role: { $ne: 'admin' } })
+//           const users = await User.find(filter)
+//           .sort({ _id: -1 })
+//           .skip(skip)
+//               .limit(limit)
+//               // .populate("departmentId")
+//               .lean(); // .lean() giúp trả về plain object thay vì mongoose doc
 
- // Đếm tổng số user (không lấy admin)
-        const totalUsers = await User.countDocuments({ role: { $ne: 'admin' } });
+//  // Đếm tổng số user (không lấy admin)
+//         const totalUsers = await User.countDocuments({ role: { $ne: 'admin' } });
 
-        res.json({
-            page,
-            limit,
-            totalUsers,
-            totalPages: Math.ceil(totalUsers / limit),
-            data: users
-        });
+//         res.json({
+//             page,
+//             limit,
+//             totalUsers,
+//             totalPages: Math.ceil(totalUsers / limit),
+//             data: users
+//         });
       
-    } catch (e) {
-        res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     } catch (e) {
+//         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
+//     }
+// });
+authRouter.get('/api/admin/users_pagination', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const filterFullName = req.query.filterFullName || "";
+    const filter = { role: { $ne: 'admin' } };
+    if (filterFullName) {
+      filter.fullName = { $regex: filterFullName, $options: 'i' };
     }
+
+    // Dùng aggregate
+    const users = await User.aggregate([
+      { $match: filter },
+      { $sort: { _id: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      // Join department
+  {
+    $lookup: {
+      from: "departments",
+      localField: "departmentId",
+      foreignField: "_id",
+      as: "department"
+    }
+  },
+  {
+    $unwind: {
+      path: "$department",
+      preserveNullAndEmptyArrays: true
+    }
+  },
+
+  // Join position
+  {
+    $lookup: {
+      from: "positions",
+      localField: "positionId",
+      foreignField: "_id",
+      as: "position"
+    }
+  },
+  {
+    $unwind: {
+      path: "$position",
+      preserveNullAndEmptyArrays: true
+    }
+  }
+    ]);
+
+    const totalUsers = await User.countDocuments(filter);
+
+    res.json({
+      page,
+      limit,
+      totalUsers,
+      totalPages: Math.ceil(totalUsers / limit),
+      data: users
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 
@@ -385,10 +481,10 @@ authRouter.put('/api/user/:id', async (req, res) => {
 authRouter.put('/api/admin/user/:id', async (req, res) => {
     try {
         const { id } = req.params; // Lấy ID người dùng từ tham số URL
-        const { department, position} = req.body; // Lấy thông tin người dùng từ body của yêu cầu
+        const { department, position, status} = req.body; // Lấy thông tin người dùng từ body của yêu cầu
         const updatedUser = await User.findByIdAndUpdate(
             id,
-            { department, position},
+            { department, position, status},
             { new: true } // Trả về người dùng đã cập nhật
         );
         if (!updatedUser) {
@@ -442,4 +538,52 @@ authRouter.put('/api/admin/organization_user/:id', async (req, res) => {
 //         res.status(500).json({ error: e.message }); // Trả về lỗi nếu có vấn đề xảy ra
 //     }   
 // });
+authRouter.get('/api/admin/infor_user_not_edit_count', async (req, res) => {
+  try {
+    const count = await User.countDocuments({ 
+      $or: [
+        { fullName: { $in: [null, ""] } },
+        { birthDay: { $in: [null, ""] } },
+        { sex: { $in: [null, ""] } },
+        { birthDay: { $in: [null, ""] } },
+        { image: { $in: [null, ""] } },
+        { phoneNumber: { $in: [null, ""] } },
+
+    ] });
+    res.json({ totalInfoUserNotEdit: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+authRouter.get('/api/admin/user_not_department', async (req, res) => {
+  try {
+    const count = await User.countDocuments( 
+        {
+      $or: [
+        { departmentId: { $exists: false } },   // Không có trường này
+        { departmentId: null },                // Trường tồn tại nhưng null
+      ]
+    }
+  );
+    res.json({ totalUserNotDepartment: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+authRouter.get('/api/admin/user_not_position', async (req, res) => {
+  try {
+    const count = await User.countDocuments( 
+        {
+      $or: [
+        { positionId: { $exists: false } },   // Không có trường này
+        { positionId: null },                // Trường tồn tại nhưng null
+      ]
+    }
+  );
+    res.json({ totalUserNotPosition: count });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = authRouter;

@@ -18,6 +18,10 @@ const userSchema = mongoose.Schema(
         enum: ['user', 'admin'],
         default: 'user',
     },
+    status: {
+        type: Boolean,
+        default: 'true',
+    },
     email:{
         type: String,
         required: true,
@@ -51,25 +55,23 @@ const userSchema = mongoose.Schema(
         default: "",
         trim: true,
     },
-    position:{
-        type: String,
-        default: null,
-        trim: true,
-    },
-    department:{
-        type: String,
-        default: null,
-        trim: true,
-    },
+    // position:{
+    //     type: String,
+    //     default: null,
+    //     trim: true,
+    // },
+    // department:{
+    //     type: String,
+    //     default: null,
+    //     trim: true,
+    // },
     departmentId:{
-        type: String,
-        default: null,
-        trim: true,
+        type: mongoose.Schema.Types.ObjectId,
+        default: null
     },
     positionId:{
-        type: String,
-        default: null,
-        trim: true,
+        type: mongoose.Schema.Types.ObjectId,
+        default: null
     },
     createdAt:{
         type: String,
