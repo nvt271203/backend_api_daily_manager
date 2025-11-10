@@ -3,8 +3,10 @@
 const Leave = require('./models/leave'); // Cập nhật đường dẫn nếu khác
 const { ObjectId } = require('mongoose').Types;
 const User = require('./models/user'); // Cập nhật đường dẫn nếu khác
+const Document = require('./models/document'); // Cập nhật đường dẫn nếu khác
 require('dotenv').config();
 const express = require('express');
+const cloudinary = require('cloudinary').v2;
 
 //Làm việc vs socket
 const http = require('http');
@@ -17,6 +19,7 @@ const departmentRouter = require('./routers/department'); // Router để xử l
 const positionRouter = require('./routers/position'); // Router để xử lý các yêu cầu liên quan đến vị trí công việc 
 const messageRouter = require('./routers/message'); // Router để xử lý các yêu cầu liên quan đến vị trí công việc 
 const roomRouter = require('./routers/room'); // Router để xử lý các yêu cầu liên quan đến phòng chat
+const documentRouter = require('./routers/document'); // Router để xử lý các yêu cầu liên quan đến document
 const PORT = 3000;
 const app = express();
 
@@ -71,6 +74,8 @@ global._io = io;
 // Middleware này cho phép ứng dụng của bạn chấp nhận các yêu cầu từ các nguồn khác
 const cors = require('cors');
 app.use(cors());
+app.use(documentRouter)
+
 //---------------------------------------------
 app.use(express.json()); // Middleware để phân tích dữ liệu JSON trong yêu cầu HTTP 
 
@@ -85,6 +90,13 @@ app.use(departmentRouter); // Sử dụng router phòng ban để xử lý các 
 app.use(positionRouter); // Sử dụng router vị trí công việc để xử lý các yêu cầu liên quan đến vị trí công việc
 app.use(messageRouter); // Sử dụng router message để xử lý các yêu cầu liên quan đến message
 app.use(roomRouter); // Sử dụng router room để xử lý các yêu cầu liên quan đến room chat
+// 1. Cấu hình Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
 
 // Connect to MongoDB using environment variable
 mongoose.connect(process.env.MONGODB_URI)
@@ -138,6 +150,10 @@ mongoose.connect(process.env.MONGODB_URI)
 //   {}, // {} nghĩa là không filter, chọn tất cả document
 //   { $set: { status: "true" } }
 // );
+const result = await Document.updateMany(
+  {}, // {} nghĩa là không filter, chọn tất cả document
+  { $set: { isTrain: "false" } }
+);
 
 
 // const users = await User.find().lean();
