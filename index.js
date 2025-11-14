@@ -150,10 +150,10 @@ mongoose.connect(process.env.MONGODB_URI)
 //   {}, // {} nghĩa là không filter, chọn tất cả document
 //   { $set: { status: "true" } }
 // );
-const result = await Document.updateMany(
-  {}, // {} nghĩa là không filter, chọn tất cả document
-  { $set: { isTrain: "false" } }
-);
+// const result = await Document.updateMany(
+//   {}, // {} nghĩa là không filter, chọn tất cả document
+//   { $set: { isTrain: "false" } }
+// );
 
 
 // const users = await User.find().lean();

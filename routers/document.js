@@ -101,6 +101,7 @@ documentRouter.post('/api/upload-multiple', uploadMultiple.array('pdfFiles', 10)
             resource_type: 'raw',
             folder: 'my_pdfs',
             public_id: `${Date.now()}-${file.originalname}`,
+            access_mode: 'public' // <--- 💡 THÊM DÒNG NÀY VÀO
           },
           (error, result) => {
             if (error) {
@@ -123,6 +124,7 @@ documentRouter.post('/api/upload-multiple', uploadMultiple.array('pdfFiles', 10)
       name: req.files[index].originalname,
       pdfUrl: result.secure_url,
       cloudinaryId: result.public_id,
+      isTrain: false,
     }));
 
     const newDocuments = await Document.insertMany(documentsToSave);
@@ -132,7 +134,8 @@ documentRouter.post('/api/upload-multiple', uploadMultiple.array('pdfFiles', 10)
     res.status(201).json({
       message: `Upload thành công ${newDocuments.length} files!`,
       documents: newDocuments,
-      urls: newDocuments.map(doc => doc.pdfUrl)
+      urls: newDocuments.map(doc => doc.pdfUrl),
+
     });
 
   } catch (err) {
